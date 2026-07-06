@@ -56,6 +56,12 @@ PLATFORMS = {
     "bluesky": post_to_bluesky,
 }
 
+# Twitter/X: 280 chars for standard accounts. Bluesky: 300 graphemes.
+MAX_LENGTHS = {
+    "twitter": 280,
+    "bluesky": 300,
+}
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -77,8 +83,17 @@ def main() -> int:
     targets = args.only or list(PLATFORMS)
 
     exit_code = 0
-    with ThreadPoolExecutor(max_workers=len(targets)) as pool:
-        futures = {pool.submit(PLATFORMS[name], text): name for name in targets}
+    to_run = []
+    for name in targets:
+        limit = MAX_LENGTHS[name]
+        if len(text) > limit:
+            print(f"[fail] {name}: text is {len(text)} chars, over the {limit} char limit")
+            exit_code = 1
+        else:
+            to_run.append(name)
+
+    with ThreadPoolExecutor(max_workers=max(len(to_run), 1)) as pool:
+        futures = {pool.submit(PLATFORMS[name], text): name for name in to_run}
         for future in futures:
             name = futures[future]
             try:
